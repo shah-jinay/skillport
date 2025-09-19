@@ -30,6 +30,14 @@ class Job(Base):
     company_id = Column(Integer, ForeignKey("companies.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    # === Phase 3 fields ===
+    posted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    employment_type = Column(String(50))   # fulltime | parttime | contract | intern
+    seniority = Column(String(50))         # junior | mid | senior | lead
+    salary_min = Column(Integer)
+    salary_max = Column(Integer)
+    salary_currency = Column(String(3), server_default="USD", nullable=False)
+
     company = relationship("Company", back_populates="jobs")
 
 class VisaFiling(Base):
@@ -44,7 +52,6 @@ class VisaFiling(Base):
 # Authentication Models
 # =============================
 
-# Association table for many-to-many User ↔ Role
 user_roles = Table(
     "user_roles",
     Base.metadata,
@@ -61,7 +68,6 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationship to roles
     roles = relationship("Role", secondary=user_roles, back_populates="users")
 
 class Role(Base):

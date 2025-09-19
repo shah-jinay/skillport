@@ -4,6 +4,10 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 from .visits import router as visits_router
+from .routers import stats
+from .routers.stats import router as stats_router
+from .routers.stats import router_admin as visa_admin_router
+
 from .routers import companies, jobs, auth
 app = FastAPI(title="SkillPort API", version="0.1.0")
 
@@ -39,3 +43,6 @@ app.include_router(visits_router, prefix="")
 app.include_router(companies.router)
 app.include_router(jobs.router)
 app.include_router(auth.router)
+app.include_router(stats.router)
+app.include_router(stats_router)
+app.include_router(visa_admin_router)

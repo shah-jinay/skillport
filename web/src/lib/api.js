@@ -9,13 +9,21 @@ export async function logVisit(path) {
     console.error("Failed to log visit:", e);
   }
 }
-export async function fetchJobs({ search = "", sponsorship } = {}) {
-  const params = new URLSearchParams();
-  if (search) params.set("search", search);
-  if (sponsorship !== undefined) params.set("sponsorship", sponsorship);
-  const res = await fetch(`/api/jobs?${params.toString()}`);
+export async function fetchJobs(params = {}) {
+  const p = new URLSearchParams();
+  const keys = ["q","location","remote","visa","employment_type","seniority","salary_min","salary_max","company_id","sort","page","page_size"];
+  for (const k of keys) if (params[k] !== undefined && params[k] !== "") p.set(k, params[k]);
+  const res = await fetch(`/api/jobs?${p.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+export async function fetchJobsByLocation() {
+  const r = await fetch("/api/stats/jobs/by-location");
+  return r.json();
+}
+export async function fetchVisaByCompany() {
+  const r = await fetch("/api/stats/visa/by-company");
+  return r.json();
 }
 
 export async function fetchCompanies() {
