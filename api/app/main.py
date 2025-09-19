@@ -1,14 +1,10 @@
+# api/app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from datetime import datetime
 import os
 from .visits import router as visits_router
-from .routers import stats
-from .routers.stats import router as stats_router
-from .routers.stats import router_admin as visa_admin_router
+from .routers import companies, jobs, auth, stats
 
-from .routers import companies, jobs, auth
 app = FastAPI(title="SkillPort API", version="0.1.0")
 
 origins = [os.getenv("CORS_ORIGIN", "http://localhost:5173")]
@@ -22,27 +18,9 @@ app.add_middleware(
 def health():
     return {"ok": True}
 
-# ---- Add this block ----
-class VisitIn(BaseModel):
-    path: str
-
-VISITS = []  # in-memory for Phase 0
-
-@app.post("/events/visit")
-def log_visit(payload: VisitIn):
-    VISITS.append({"path": payload.path, "ts": datetime.utcnow().isoformat()})
-    return {"ok": True, "count": len(VISITS)}
-# ------------------------
-
-
-# Visit logging route
 app.include_router(visits_router, prefix="")
-
-
-# register endpoints
 app.include_router(companies.router)
 app.include_router(jobs.router)
 app.include_router(auth.router)
-app.include_router(stats.router)
-app.include_router(stats_router)
-app.include_router(visa_admin_router)
+app.include_router(stats.router)            # keep this one
+app.include_router(stats.router_admin)      # and the admin subrouter

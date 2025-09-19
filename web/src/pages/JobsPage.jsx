@@ -1,68 +1,88 @@
-// web/src/pages/JobsPage.jsx
 import { useEffect, useState } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import { Layout } from "../components/Layout";
 import { JobCard } from "../components/JobCard";
-import { fetchJobs } from "../lib/api";
+import FilterBar from "../components/FilterBar";
+import { fetchJobs, fetchJobsCount } from "../lib/api";
 
 export default function JobsPage() {
+  const [params] = useSearchParams();
   const [jobs, setJobs] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState("");
-  const [location, setLocation] = useState("");
-  const [remote, setRemote] = useState("");
-  const [visa, setVisa] = useState("");
-  const [sort, setSort] = useState("posted_at:desc");
-  const [page, setPage] = useState(1);
+  const page = parseInt(params.get("page") || "1", 10);
+  const pageSize = 12;
 
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await fetchJobs({ q, location, remote, visa, sort, page, page_size: 12 });
-      setJobs(data);
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => { load(); }, [q, location, remote, visa, sort, page]);
+  const query = Object.fromEntries(params.entries());
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const [data, cnt] = await Promise.all([
+          fetchJobs({ ...query, page, page_size: pageSize }),
+          fetchJobsCount(query),
+        ]);
+        if (!cancelled) {
+          setJobs(data);
+          setTotal(cnt.total);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const makePageLink = (p) => {
+    const q = new URLSearchParams({ ...query, page: String(p) }).toString();
+    return `/jobs?${q}`;
+  };
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold">Jobs</h1>
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-3">
-        <input className="border rounded px-3 py-2 col-span-2" placeholder="Search title/description"
-               value={q} onChange={e=>setQ(e.target.value)} />
-        <input className="border rounded px-3 py-2" placeholder="Location"
-               value={location} onChange={e=>setLocation(e.target.value)} />
-        <select className="border rounded px-3 py-2" value={remote} onChange={e=>setRemote(e.target.value)}>
-          <option value="">Remote/Onsite</option>
-          <option value="true">Remote</option>
-          <option value="false">Onsite</option>
-        </select>
-        <select className="border rounded px-3 py-2" value={visa} onChange={e=>setVisa(e.target.value)}>
-          <option value="">Visa: Any</option>
-          <option value="true">Visa: Yes</option>
-          <option value="false">Visa: No</option>
-        </select>
-        <select className="border rounded px-3 py-2" value={sort} onChange={e=>setSort(e.target.value)}>
-          <option value="posted_at:desc">Newest</option>
-          <option value="posted_at:asc">Oldest</option>
-          <option value="salary_max:desc">Highest Salary</option>
-          <option value="salary_max:asc">Lowest Salary</option>
-        </select>
-      </div>
+      <h1 className="text-2xl font-semibold mb-4">Jobs</h1>
+      <FilterBar />
 
-      {loading ? <p className="mt-8 text-sm text-center">Loading…</p> :
-        jobs.length === 0 ? <p className="mt-8 text-sm text-center">No jobs match your filters.</p> :
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          {jobs.map(j => <JobCard key={j.id} job={j} />)}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="animate-pulse rounded-xl border p-4">
+              <div className="h-6 w-3/5 bg-gray-200 rounded mb-3" />
+              <div className="h-4 w-2/5 bg-gray-200 rounded mb-2" />
+              <div className="h-4 w-4/5 bg-gray-200 rounded mb-4" />
+              <div className="h-8 w-full bg-gray-200 rounded" />
+            </div>
+          ))}
         </div>
-      }
+      ) : jobs.length === 0 ? (
+        <p className="mt-6 text-gray-600">No results.</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            {jobs.map((j) => (
+              <Link key={j.id} to={`/jobs/${j.id}`} className="block">
+                <JobCard job={j} />
+              </Link>
+            ))}
+          </div>
 
-      <div className="mt-8 flex justify-center gap-3">
-        <button className="px-3 py-2 border rounded" disabled={page<=1} onClick={()=>setPage(p=>p-1)}>Prev</button>
-        <span className="px-3 py-2">Page {page}</span>
-        <button className="px-3 py-2 border rounded" onClick={()=>setPage(p=>p+1)}>Next</button>
-      </div>
+          {/* Pagination */}
+          <div className="flex items-center justify-center gap-2 mt-10">
+            <Link to={makePageLink(Math.max(1, page - 1))} className="px-3 py-1 border rounded">
+              Prev
+            </Link>
+            <span className="text-sm">
+              Page {page} of {totalPages}
+            </span>
+            <Link to={makePageLink(Math.min(totalPages, page + 1))} className="px-3 py-1 border rounded">
+              Next
+            </Link>
+          </div>
+        </>
+      )}
     </Layout>
   );
 }

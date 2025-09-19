@@ -1,15 +1,17 @@
+# api/app/routers/jobs.py
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
+from sqlalchemy.orm import selectinload
+
 from ..db import get_db
 from ..models import Job, Company
 from ..schemas import JobOut, JobCreate
 from ..deps import requires_roles
 
-router = APIRouter()
+router = APIRouter(prefix="/jobs", tags=["jobs"])
 
-# ---- shared helpers ---------------------------------------------------------
-
+# ---- helpers ---------------------------------------------------------
 def apply_job_filters(
     stmt,
     *,
@@ -58,9 +60,8 @@ def parse_sort(sort: str):
         raise HTTPException(status_code=400, detail="Invalid sort value")
     return col_map[col], direction
 
-# ---- endpoints --------------------------------------------------------------
-
-@router.get("/jobs", response_model=list[JobOut])
+# ---- endpoints --------------------------------------------------------
+@router.get("", response_model=list[JobOut])
 async def list_jobs(
     db: AsyncSession = Depends(get_db),
     q: str | None = Query(None, description="search in title/description"),
@@ -72,11 +73,10 @@ async def list_jobs(
     salary_min: int | None = Query(None),
     salary_max: int | None = Query(None),
     company_id: int | None = Query(None),
-    sort: str = Query("posted_at:desc", pattern="^(posted_at|salary_max|created_at):(asc|desc)$"),  # FastAPI uses `pattern`
+    sort: str = Query("posted_at:desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(12, ge=1, le=100),
 ):
-    # base stmt with LEFT JOIN company so we avoid N+1 queries
     stmt = select(Job, Company).join(Company, Company.id == Job.company_id, isouter=True)
     stmt = apply_job_filters(
         stmt,
@@ -85,25 +85,22 @@ async def list_jobs(
         salary_min=salary_min, salary_max=salary_max, company_id=company_id,
     )
 
-    # sorting
     order_col, direction = parse_sort(sort)
     stmt = stmt.order_by(order_col.asc() if direction == "asc" else order_col.desc())
 
-    # pagination
     offset = (page - 1) * page_size
     stmt = stmt.offset(offset).limit(page_size)
 
     rows = (await db.execute(stmt)).all()
 
-    # stitch company onto job objects for Pydantic schema
     jobs: list[Job] = []
     for j, c in rows:
-        j.company = c  # attach joined company for serialization
+        j.company = c
         jobs.append(j)
 
     return jobs
 
-@router.get("/jobs/count")
+@router.get("/count")
 async def jobs_count(
     db: AsyncSession = Depends(get_db),
     q: str | None = Query(None, description="search in title/description"),
@@ -125,7 +122,8 @@ async def jobs_count(
     )
     total = (await db.execute(stmt)).scalar_one()
     return {"total": total}
-@router.post("/jobs", response_model=JobOut)
+
+@router.post("", response_model=JobOut)
 async def create_job(
     body: JobCreate,
     db: AsyncSession = Depends(get_db),
@@ -143,11 +141,11 @@ async def create_job(
 
     return job
 
-def parse_sort(s: str):
-    col, direction = s.split(":")
-    col_map = {
-        "posted_at": Job.posted_at,
-        "salary_max": Job.salary_max,
-        "created_at": Job.created_at,
-    }
-    return col_map.get(col, Job.created_at), ("asc" if direction=="asc" else "desc")
+@router.get("/{job_id}", response_model=JobOut)
+async def get_job(job_id: int, db: AsyncSession = Depends(get_db)):
+    q = select(Job).where(Job.id == job_id).options(selectinload(Job.company))
+    result = await db.execute(q)
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Not found")
+    return job
