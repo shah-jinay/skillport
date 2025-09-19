@@ -1,56 +1,42 @@
 import { useEffect, useState } from "react";
-import { logVisit } from "./lib/api";
 import { Layout } from "./components/Layout";
 import { JobCard } from "./components/JobCard";
+import { fetchJobs } from "./lib/api";
 
 export default function App() {
-  const [health, setHealth] = useState(null);
-  const [err, setErr] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1) Health check
-    fetch("http://localhost:8000/health")
-      .then(r => {
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.json();
-      })
-      .then(data => setHealth(data))
-      .catch(e => {
-        console.error("Health check failed:", e);
-        setErr(e.message);
-        setHealth({ ok: false });
-      });
-
-    // 2) Log ONE visit (remove your direct POST to avoid duplicates)
-    logVisit(window.location.pathname);
-  }, []);
-
-  const sampleJob = {
-    title: "Backend Engineer",
-    company: "Acme Inc",
-    location: "Remote",
-    remote: true,
-    visa_confidence: "High",
-    tech_tags: ["Python", "FastAPI", "Postgres"],
-    source_url: "#",
-  };
+    setLoading(true);
+    fetchJobs({ search: q })
+      .then(setJobs)
+      .finally(() => setLoading(false));
+  }, [q]);
 
   return (
     <Layout>
-      <h1 className="text-4xl font-bold text-center">
-        Find Visa-Friendly Tech Jobs
-      </h1>
+      <h1 className="text-4xl font-bold text-center">Find Visa-Friendly Tech Jobs</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
-        <JobCard job={sampleJob} />
-        <JobCard job={{ ...sampleJob, company: "Globex", visa_confidence: "Medium" }} />
-        <JobCard job={{ ...sampleJob, company: "Initech", visa_confidence: "Low" }} />
+      <div className="mt-6 max-w-3xl mx-auto flex gap-3">
+        <input
+          className="flex-1 border rounded-xl px-4 py-3"
+          placeholder="Search job titles (e.g., Backend)"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
       </div>
 
-      <p className="mt-10 text-center text-sm">
-        API Health: {JSON.stringify(health)}
-        {err && <span className="text-red-600">, error: {err}</span>}
-      </p>
+      {loading ? (
+        <p className="mt-10 text-center text-sm">Loading…</p>
+      ) : jobs.length === 0 ? (
+        <p className="mt-10 text-center text-sm">No jobs found.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
+          {jobs.map((j) => <JobCard key={j.id} job={j} />)}
+        </div>
+      )}
     </Layout>
   );
 }
