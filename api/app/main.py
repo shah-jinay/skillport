@@ -4,8 +4,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 from .visits import router as visits_router
-from .routers import companies as companies_router
-from .routers import jobs as jobs_router
+from .routers import companies, jobs, auth
 app = FastAPI(title="SkillPort API", version="0.1.0")
 
 origins = [os.getenv("CORS_ORIGIN", "http://localhost:5173")]
@@ -34,6 +33,9 @@ def log_visit(payload: VisitIn):
 
 # Visit logging route
 app.include_router(visits_router, prefix="")
+
+
 # register endpoints
-app.include_router(companies_router.router)
-app.include_router(jobs_router.router)
+app.include_router(companies.router)
+app.include_router(jobs.router)
+app.include_router(auth.router)

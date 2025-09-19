@@ -9,6 +9,7 @@ from pathlib import Path
 
 from alembic import context
 from sqlalchemy import pool
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 # Ensure "app" is importable when Alembic runs
@@ -18,14 +19,17 @@ if str(BASE_DIR) not in sys.path:
 
 from app.models import Base  # noqa: E402
 
+# Alembic Config object
 config = context.config
 
+# Logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Target metadata
 target_metadata = Base.metadata
 
-# fallback to env var if alembic.ini didn't set it (optional)
+# If alembic.ini didn't set the URL, fall back to env var (optional)
 if not config.get_main_option("sqlalchemy.url"):
     config.set_main_option(
         "sqlalchemy.url",
@@ -33,6 +37,7 @@ if not config.get_main_option("sqlalchemy.url"):
     )
 
 def run_migrations_offline() -> None:
+    """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -41,33 +46,39 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         compare_server_default=True,
+        version_table="alembic_version",
+        version_table_schema="public",
     )
     with context.begin_transaction():
         context.run_migrations()
 
-async def run_async_migrations() -> None:
+def do_run_migrations(connection: Connection) -> None:
+    """Sync callback used by AsyncEngine.run_sync()."""
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+        compare_server_default=True,
+        version_table="alembic_version",
+        version_table_schema="public",
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+async def run_migrations_online() -> None:
+    """Run migrations in 'online' (async) mode."""
     connectable: AsyncEngine = create_async_engine(
         config.get_main_option("sqlalchemy.url"),
         poolclass=pool.NullPool,
-        future=True,
     )
-    async with connectable.connect() as connection:
-        await connection.run_sync(
-            lambda conn: context.configure(
-                connection=conn,
-                target_metadata=target_metadata,
-                compare_type=True,
-                compare_server_default=True,
-            )
-        )
-        await connection.run_sync(lambda _: context.begin_transaction())
-        await connection.run_sync(lambda _: context.run_migrations())
+    async with connectable.connect() as async_conn:
+        await async_conn.run_sync(do_run_migrations)
     await connectable.dispose()
 
-def run_migrations_online() -> None:
-    asyncio.run(run_async_migrations())
+def run_migrations() -> None:
+    if context.is_offline_mode():
+        run_migrations_offline()
+    else:
+        asyncio.run(run_migrations_online())
 
-if context.is_offline_mode():
-    run_migrations_offline()
-else:
-    run_migrations_online()
+run_migrations()

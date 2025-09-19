@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
 
 class CompanyOut(BaseModel):
@@ -20,3 +20,27 @@ class JobOut(BaseModel):
     created_at: datetime | None = None
     company: CompanyOut | None = None
     class Config: orm_mode = True
+class RoleOut(BaseModel):
+    id: int
+    name: str
+    model_config = {"from_attributes": True}
+
+class UserOut(BaseModel):
+    id: int
+    email: EmailStr
+    is_active: bool
+    created_at: datetime | None = None
+    roles: list[RoleOut] = []
+    model_config = {"from_attributes": True}
+
+class RegisterIn(BaseModel):
+    email: EmailStr
+    password: str
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"

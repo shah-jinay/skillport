@@ -4,6 +4,7 @@ from sqlalchemy import select
 from ..db import get_db
 from ..models import Job, Company
 from ..schemas import JobOut
+from ..deps import requires_roles
 
 router = APIRouter()
 
@@ -28,3 +29,16 @@ async def list_jobs(
             c = (await db.execute(select(Company).where(Company.id == j.company_id))).scalar_one()
             j.company = c
     return jobs
+@router.post("/jobs", response_model=JobOut)
+async def create_job(payload: dict,
+                     db: AsyncSession = Depends(get_db),
+                     user = Depends(requires_roles("recruiter","admin"))):
+    # payload expects: title, company_id, location, description, remote, visa_sponsorship
+    job = Job(**payload)
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+    # attach company for response
+    if job.company_id:
+        job.company = (await db.execute(select(Company).where(Company.id==job.company_id))).scalar_one()
+    return job

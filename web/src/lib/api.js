@@ -23,3 +23,21 @@ export async function fetchCompanies() {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+export async function register(email, password) {
+  const r = await fetch("/api/auth/register", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ email, password }) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export async function login(email, password) {
+  const r = await fetch("/api/auth/login", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ email, password }) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json(); // {access_token}
+}
+
+export async function me(token) {
+  const r = await fetch("/api/auth/me", { headers:{ Authorization:`Bearer ${token}` } });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}

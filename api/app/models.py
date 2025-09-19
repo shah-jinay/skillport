@@ -1,8 +1,13 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean, DateTime, func
+from sqlalchemy import (
+    Column, Integer, String, Text, ForeignKey, Boolean, DateTime, func, Table, UniqueConstraint
+)
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
 
+# =============================
+# Company and Job Models
+# =============================
 class Company(Base):
     __tablename__ = "companies"
     id = Column(Integer, primary_key=True, index=True)
@@ -34,3 +39,33 @@ class VisaFiling(Base):
     year = Column(Integer)
     approved_count = Column(Integer, default=0)
     denied_count = Column(Integer, default=0)
+
+# =============================
+# Authentication Models
+# =============================
+
+# Association table for many-to-many User ↔ Role
+user_roles = Table(
+    "user_roles",
+    Base.metadata,
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("role_id", Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
+    UniqueConstraint("user_id", "role_id", name="uq_user_role")
+)
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), nullable=False, unique=True, index=True)
+    password_hash = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationship to roles
+    roles = relationship("Role", secondary=user_roles, back_populates="users")
+
+class Role(Base):
+    __tablename__ = "roles"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), nullable=False, unique=True, index=True)  # admin, recruiter, seeker
+    users = relationship("User", secondary=user_roles, back_populates="roles")
